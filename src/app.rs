@@ -11,16 +11,16 @@ const HEIGHT: u32 = 1000;
 // if we add new fields, give them default values when deserializing old state
 
 pub struct TemplateApp {
-    label: String,
-    #[serde(skip)]
+    print_scale: f32,
+    // #[serde(skip)]
     art: Art,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            label: "Hello World!".to_owned(),
-            art: Art::new(0.4),
+            print_scale: 1.08,
+            art: Art::new(0.5),
         }
     }
 }
@@ -48,14 +48,7 @@ impl eframe::App for TemplateApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // let Self {
-        //     label,
-        //     value,
-        //     mut art,
-        // } = self;
-        // let mut art = self.art.clone();
         let pixmap = draw(WIDTH, HEIGHT, 1.0, &self.art);
-
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -68,25 +61,24 @@ impl eframe::App for TemplateApp {
         });
 
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Close");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
-
+            ui.add_space(10.0);
+            ui.vertical_centered(|ui| ui.heading("Controls"));
+            ui.add_space(20.0);
             ui.add(
                 egui::Slider::new(&mut self.art.radial_middle_stop, 0.0..=1.0)
                     .text("Middle Gradient Stop"),
             );
             ui.add_space(20.0);
-            if ui.button("Save").clicked() {
-                print(pixmap.width(), pixmap.height(), 1.08, &self.art);
-            }
+            ui.horizontal(|ui| {
+                ui.add(egui::Slider::new(&mut self.print_scale, 0.36..=10.8).text("text"));
+                if ui.button("Save").clicked() {
+                    print(pixmap.width(), pixmap.height(), self.print_scale, &self.art);
+                }
+            });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Wassily Gui App");
+            ui.vertical_centered(|ui| ui.heading("Wassily Gui Demo"));
             ui.add_space(20.0);
             egui::warn_if_debug_build(ui);
             let mut opt_texture: Option<egui::TextureHandle> = None;
@@ -94,7 +86,7 @@ impl eframe::App for TemplateApp {
                 ui.ctx()
                     .load_texture("wave", generate(pixmap), TextureFilter::default())
             });
-            let img_size = 1.0 * texture.size_vec2();
+            let img_size = texture.size_vec2();
             ui.horizontal(|ui| {
                 ui.add_space(20.0);
                 ui.add_sized(
@@ -115,5 +107,7 @@ fn generate(pixmap: Pixmap) -> ColorImage {
 
 fn print(width: u32, height: u32, scale: f32, art: &Art) {
     let pixmap = draw(width, height, scale, art);
-    pixmap.save_png("./output/grad.png");
+    pixmap
+        .save_png("./output/grad.png")
+        .expect("Error saving image");
 }

@@ -1,6 +1,6 @@
 use wassily::prelude::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct Art {
     pub radial_middle_stop: f32,
 }
