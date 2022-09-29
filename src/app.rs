@@ -20,7 +20,19 @@ impl Default for TemplateApp {
     fn default() -> Self {
         Self {
             print_scale: 1.08,
-            art: Art::new(0.5),
+            art: Art::new(
+                2,
+                100,
+                100,
+                5.0,
+                5.0,
+                2.0,
+                1.0,
+                1.0,
+                4,
+                std::f64::consts::TAU / 3.0,
+                0.5,
+            ),
         }
     }
 }
@@ -63,14 +75,37 @@ impl eframe::App for TemplateApp {
         egui::SidePanel::left("side_panel").show(ctx, |ui| {
             ui.add_space(10.0);
             ui.vertical_centered(|ui| ui.heading("Controls"));
-            ui.add_space(20.0);
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.separatation, 0..=30).text("Separation"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.starts, 1..=1500).text("Starts"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.length, 1..=1000).text("Length"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.step, 1.0..=100.0).text("Step"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.pearl_size, 0.0..=100.0).text("Pearl Size"));
+            ui.add_space(10.0);
             ui.add(
-                egui::Slider::new(&mut self.art.radial_middle_stop, 0.0..=1.0)
-                    .text("Middle Gradient Stop"),
+                egui::Slider::new(&mut self.art.stroke_weight, 0.0..=20.0).text("Stroke Weight"),
             );
-            ui.add_space(20.0);
+            ui.add_space(10.0);
+            ui.separator();
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.noise_scale, 0.1..=10.0).text("Noise Scale"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.noise_factor, 0.0..=2.0).text("Noise Factor"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.octaves, 1..=8).text("Octaves"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.lacunarity, 0.0..=8.0).text("Lacunarity"));
+            ui.add_space(10.0);
+            ui.add(egui::Slider::new(&mut self.art.persistence, 0.0..=2.0).text("Persistence"));
+            ui.add_space(10.0);
+            ui.separator();
+            ui.add_space(10.0);
             ui.horizontal(|ui| {
-                ui.add(egui::Slider::new(&mut self.print_scale, 0.36..=10.8).text("text"));
+                ui.add(egui::Slider::new(&mut self.print_scale, 0.36..=10.8).text("Print Scale"));
                 if ui.button("Save").clicked() {
                     print(pixmap.width(), pixmap.height(), self.print_scale, &self.art);
                 }
@@ -99,15 +134,21 @@ impl eframe::App for TemplateApp {
 }
 
 fn generate(pixmap: Pixmap) -> ColorImage {
+    let mut img = pixmap.clone();
+    let i = img.pixels().iter().map(|p| p.demultiply());
     ColorImage::from_rgba_unmultiplied(
         [pixmap.width() as usize, pixmap.height() as usize],
-        pixmap.data(),
+        img.data(),
     )
+    // ColorImage::from_rgba_unmultiplied(
+    //     [pixmap.width() as usize, pixmap.height() as usize],
+    //     pixmap.data(),
+    // )
 }
 
 fn print(width: u32, height: u32, scale: f32, art: &Art) {
     let pixmap = draw(width, height, scale, art);
     pixmap
-        .save_png("./output/grad.png")
+        .save_png("./output/ff.png")
         .expect("Error saving image");
 }
