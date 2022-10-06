@@ -1,6 +1,6 @@
 use crate::art::*;
 use egui::{ColorImage, TextureFilter};
-use wassily::prelude::Pixmap;
+use wassily::prelude::*;
 
 const WIDTH: u32 = 1000;
 const HEIGHT: u32 = 1000;
@@ -13,26 +13,28 @@ const HEIGHT: u32 = 1000;
 pub struct TemplateApp {
     print_scale: f32,
     // #[serde(skip)]
-    art: Art,
+    wheel_params: WheelParams,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
             print_scale: 1.08,
-            art: Art::new(
-                2,
-                100,
-                100,
-                5.0,
-                5.0,
-                2.0,
-                1.0,
-                1.0,
-                4,
-                std::f64::consts::TAU / 3.0,
-                0.5,
-            ),
+            wheel_params: WheelParams {
+                hue1: 0.2,
+                hue2: 0.4,
+                hue3: 0.6,
+                hue4: 0.8,
+                sat1: 0.25,
+                sat2: 0.5,
+                sat3: 0.75,
+                sat4: 1.0,
+                light1: 0.25,
+                light2: 0.5,
+                light3: 0.75,
+                sat_offset: 0.0,
+                light_offset: 0.0,
+            },
         }
     }
 }
@@ -53,6 +55,28 @@ impl TemplateApp {
     }
 }
 
+fn rando() -> Vec<f32> {
+    let mut rng = thread_rng();
+    vec![
+        // hues
+        rng.gen_range(0.0..0.25),
+        rng.gen_range(0.35..0.60),
+        rng.gen_range(0.6..0.77),
+        rng.gen_range(0.82..1.0),
+        // sats
+        rng.gen_range(0.2..0.3),
+        rng.gen_range(0.3..0.5),
+        rng.gen_range(0.5..0.7),
+        rng.gen_range(0.7..0.9),
+        // lights
+        rng.gen_range(0.2..0.4),
+        rng.gen_range(0.4..0.6),
+        rng.gen_range(0.6..0.85),
+        rng.gen(),
+        rng.gen(),
+    ]
+}
+
 impl eframe::App for TemplateApp {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -60,7 +84,8 @@ impl eframe::App for TemplateApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let pixmap = draw(WIDTH, HEIGHT, 1.0, &self.art);
+        let pixmap = wheel(WIDTH, HEIGHT, 1.0, &self.wheel_params);
+        // let pixmap = draw(WIDTH, HEIGHT, 1.0, &self.art);
         #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
@@ -76,38 +101,117 @@ impl eframe::App for TemplateApp {
             ui.add_space(10.0);
             ui.vertical_centered(|ui| ui.heading("Controls"));
             ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.separatation, 0..=30).text("Separation"));
-            ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.starts, 1..=1500).text("Starts"));
-            ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.length, 1..=1000).text("Length"));
-            ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.step, 1.0..=100.0).text("Step"));
-            ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.pearl_size, 0.0..=100.0).text("Pearl Size"));
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.hue1, 0.0..=1.0)
+                    .text("Hue 1")
+                    .step_by(0.01),
+            );
             ui.add_space(10.0);
             ui.add(
-                egui::Slider::new(&mut self.art.stroke_weight, 0.0..=20.0).text("Stroke Weight"),
+                egui::Slider::new(&mut self.wheel_params.hue2, 0.0..=1.0)
+                    .text("Hue 2")
+                    .step_by(0.01),
+            );
+            ui.add_space(10.0);
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.hue3, 0.0..=1.0)
+                    .text("Hue 3")
+                    .step_by(0.01),
+            );
+            ui.add_space(10.0);
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.hue4, 0.0..=1.0)
+                    .text("Hue 4")
+                    .step_by(0.01),
             );
             ui.add_space(10.0);
             ui.separator();
             ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.noise_scale, 0.1..=10.0).text("Noise Scale"));
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.sat1, 0.0..=1.0)
+                    .text("Saturation 1")
+                    .step_by(0.01),
+            );
             ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.noise_factor, 0.0..=2.0).text("Noise Factor"));
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.sat2, 0.0..=1.0)
+                    .text("Saturation 2")
+                    .step_by(0.01),
+            );
             ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.octaves, 1..=8).text("Octaves"));
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.sat3, 0.0..=1.0)
+                    .text("Saturation 3")
+                    .step_by(0.01),
+            );
             ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.lacunarity, 0.0..=8.0).text("Lacunarity"));
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.sat4, 0.0..=1.0)
+                    .text("Saturation 4")
+                    .step_by(0.01),
+            );
             ui.add_space(10.0);
-            ui.add(egui::Slider::new(&mut self.art.persistence, 0.0..=2.0).text("Persistence"));
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.sat_offset, 0.0..=1.0)
+                    .text("Saturation Offset")
+                    .step_by(0.01),
+            );
             ui.add_space(10.0);
             ui.separator();
+            ui.add_space(10.0);
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.light1, 0.0..=1.0)
+                    .text("Light 1")
+                    .step_by(0.01),
+            );
+            ui.add_space(10.0);
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.light2, 0.0..=1.0)
+                    .text("Light 2")
+                    .step_by(0.01),
+            );
+            ui.add_space(10.0);
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.light3, 0.0..=1.0)
+                    .text("Light 3")
+                    .step_by(0.01),
+            );
+            ui.add_space(10.0);
+            ui.add(
+                egui::Slider::new(&mut self.wheel_params.light_offset, 0.0..=1.0)
+                    .text("Light Offset")
+                    .step_by(0.01),
+            );
+            ui.separator();
+            ui.add_space(10.0);
+            ui.vertical_centered(|ui| {
+                if ui.button("Random").clicked() {
+                    let xs = rando();
+                    self.wheel_params.hue1 = xs[0];
+                    self.wheel_params.hue2 = xs[1];
+                    self.wheel_params.hue3 = xs[2];
+                    self.wheel_params.hue4 = xs[3];
+                    self.wheel_params.sat1 = xs[4];
+                    self.wheel_params.sat2 = xs[5];
+                    self.wheel_params.sat3 = xs[6];
+                    self.wheel_params.sat4 = xs[7];
+                    self.wheel_params.light1 = xs[8];
+                    self.wheel_params.light2 = xs[9];
+                    self.wheel_params.light3 = xs[10];
+                    self.wheel_params.sat_offset = xs[11];
+                    self.wheel_params.light_offset = xs[12];
+                }
+            });
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 ui.add(egui::Slider::new(&mut self.print_scale, 0.36..=10.8).text("Print Scale"));
                 if ui.button("Save").clicked() {
-                    print(pixmap.width(), pixmap.height(), self.print_scale, &self.art);
+                    print(
+                        pixmap.width(),
+                        pixmap.height(),
+                        self.print_scale,
+                        &self.wheel_params,
+                    );
                 }
             });
         });
@@ -134,21 +238,15 @@ impl eframe::App for TemplateApp {
 }
 
 fn generate(pixmap: Pixmap) -> ColorImage {
-    let mut img = pixmap.clone();
-    let i = img.pixels().iter().map(|p| p.demultiply());
     ColorImage::from_rgba_unmultiplied(
         [pixmap.width() as usize, pixmap.height() as usize],
-        img.data(),
+        pixmap.data(),
     )
-    // ColorImage::from_rgba_unmultiplied(
-    //     [pixmap.width() as usize, pixmap.height() as usize],
-    //     pixmap.data(),
-    // )
 }
 
-fn print(width: u32, height: u32, scale: f32, art: &Art) {
-    let pixmap = draw(width, height, scale, art);
+fn print(width: u32, height: u32, scale: f32, art: &WheelParams) {
+    let pixmap = wheel(width, height, scale, art);
     pixmap
-        .save_png("./output/ff.png")
+        .save_png("./output/color.png")
         .expect("Error saving image");
 }

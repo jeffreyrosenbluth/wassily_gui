@@ -1,119 +1,172 @@
 use wassily::prelude::*;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct Art {
-    pub separatation: u32,
-    pub starts: u32,
-    pub length: u32,
-    pub step: f32,
-    pub pearl_size: f32,
-    pub stroke_weight: f32,
-    pub noise_scale: f32,
-    pub noise_factor: f32,
-    pub octaves: usize,
-    pub lacunarity: f64,
-    pub persistence: f64,
+pub struct WheelParams {
+    pub hue1: f32,
+    pub hue2: f32,
+    pub hue3: f32,
+    pub hue4: f32,
+    pub sat1: f32,
+    pub sat2: f32,
+    pub sat3: f32,
+    pub sat4: f32,
+    pub light1: f32,
+    pub light2: f32,
+    pub light3: f32,
+    pub sat_offset: f32,
+    pub light_offset: f32,
 }
 
-impl Art {
+impl WheelParams {
     pub fn new(
-        separatation: u32,
-        starts: u32,
-        length: u32,
-        step: f32,
-        pearl_size: f32,
-        stroke_weight: f32,
-        noise_scale: f32,
-        noise_factor: f32,
-        octaves: usize,
-        lacunarity: f64,
-        persistence: f64,
+        hue1: f32,
+        hue2: f32,
+        hue3: f32,
+        hue4: f32,
+        sat1: f32,
+        sat2: f32,
+        sat3: f32,
+        sat4: f32,
+        light1: f32,
+        light2: f32,
+        light3: f32,
+        sat_offset: f32,
+        light_offset: f32,
     ) -> Self {
         Self {
-            separatation,
-            starts,
-            length,
-            step,
-            pearl_size,
-            stroke_weight,
-            noise_scale,
-            noise_factor,
-            octaves,
-            lacunarity,
-            persistence,
+            hue1,
+            hue2,
+            hue3,
+            hue4,
+            sat1,
+            sat2,
+            sat3,
+            sat4,
+            light1,
+            light2,
+            light3,
+            sat_offset,
+            light_offset,
         }
     }
 }
 
-pub fn draw(width: u32, height: u32, scale: f32, art: &Art) -> Pixmap {
-    let mut canvas = Canvas::with_scale(width, height, scale);
-    let bg_color = *CHOCOLATE;
-    canvas.fill(bg_color);
-    let sep = art.separatation;
-    let step = art.step;
-    let max_length = art.length;
-    let nf = Fbm::<Perlin>::new(0)
-        .set_octaves(art.octaves)
-        .set_lacunarity(art.lacunarity)
-        .set_persistence(art.persistence);
-    // let nf = Curl::new(nf);
-    let opts = NoiseOpts::with_wh(canvas.width(), canvas.height())
-        .scales(art.noise_scale)
-        .factor(art.noise_factor);
-    let grid: FlowGrid;
-    if sep > 0 {
-        let x = 1 + canvas.width() / sep;
-        let y = 1 + canvas.height() / sep;
-        grid = Matrix::new(x, y, vec![vec![]; (x * y) as usize]);
-    } else {
-        grid = Matrix::new(0 as u32, 0, vec![]);
+pub fn map_circle(xs: &[f32], w: f32, x: f32) -> f32 {
+    // Avoid negative numbers
+    let mut x = x;
+    let mut xs: Vec<f32> = xs.iter().map(|x| x + 1.0).collect();
+    xs.push(xs[0] + 1.0);
+    let mut mids = Vec::new();
+    for y in xs.windows(2) {
+        mids.push(0.5 * (y[0] + y[1]));
     }
-    let mut flow = FlowField {
-        grid,
-        noise_function: Box::new(nf),
-        noise_opts: opts,
-        sepration: sep as f32,
-        step_size: step,
-        width: canvas.width(),
-        height: canvas.height(),
-        max_length,
-        obstacles: vec![],
-    };
-    let starts = halton_23(canvas.width(), canvas.height(), art.starts, 1231);
-    let mut rng = SmallRng::seed_from_u64(0);
-    for p in starts.iter() {
-        let pts = flow.curve(p.x, p.y);
-        if pts.len() > 2 {
-            ShapeBuilder::new()
-                .points(&pts)
-                .no_fill()
-                .stroke_color((*SADDLEBROWN).shade(0.75))
-                .stroke_weight(art.stroke_weight)
-                .line_cap(LineCap::Round)
-                .build()
-                .draw(&mut canvas);
-            let mut colr = *FORESTGREEN;
-            colr = colr.tint(rng.gen_range(0.0..0.5));
-            colr.set_alpha(0.75);
-            let n: f32 = rng.sample(StandardNormal);
-            let size: f32 = art.pearl_size * (n + 1.0).abs();
-            ShapeBuilder::new()
-                .pearl(*p, size, size, 8, 5, &mut rng)
-                .no_stroke()
-                .fill_color(colr)
-                .build()
-                .draw(&mut canvas);
-            let q = pts[pts.len() - 1];
-            colr = *GOLDENROD;
-            colr = colr.shade(rng.gen_range(0.0..0.5));
-            colr.set_alpha(0.75);
-            ShapeBuilder::new()
-                .pearl(q, size, size, 8, 5, &mut rng)
-                .no_stroke()
-                .fill_color(colr)
-                .build()
-                .draw(&mut canvas);
+    mids.push(mids[0] + 1.0);
+    while x < mids[0] {
+        x += 1.0
+    }
+    for i in 0..mids.len() - 1 {
+        if (mids[i]..mids[i + 1]).contains(&x) {
+            let v = xs[i + 1];
+            return map_range(x, mids[i], mids[i + 1], v - w, v + w) % 1.0;
         }
     }
+    panic!("x is not in any of the intervals");
+}
+
+pub fn map_interval(xs: &[f32], w: f32, x: f32) -> f32 {
+    // Avoid negative numbers
+    let xs: Vec<f32> = xs.to_vec();
+    let mut mids = vec![0.0];
+    for y in xs.windows(2) {
+        mids.push(0.5 * (y[0] + y[1]));
+    }
+    mids.push(1.0);
+    for i in 0..mids.len() - 1 {
+        if (mids[i]..mids[i + 1]).contains(&x) {
+            let v = xs[(i) % (mids.len() - 1)];
+            return map_range(
+                x,
+                mids[i],
+                mids[i + 1],
+                (v - w).clamp(0.0, 1.0),
+                (v + w).clamp(0.0, 1.0),
+            );
+        }
+    }
+    panic!("x is not in any of the intervals");
+}
+
+pub fn wheel(width: u32, height: u32, scale: f32, wheel_params: &WheelParams) -> Pixmap {
+    let mut canvas = Canvas::with_scale(width, height, scale);
+    let hues: Vec<f32> = vec![
+        wheel_params.hue1,
+        wheel_params.hue2,
+        wheel_params.hue3,
+        wheel_params.hue4,
+    ];
+    let sats: Vec<f32> = vec![
+        wheel_params.sat1,
+        wheel_params.sat2,
+        wheel_params.sat3,
+        wheel_params.sat4,
+    ];
+    let lights: Vec<f32> = vec![
+        wheel_params.light1,
+        wheel_params.light2,
+        wheel_params.light3,
+    ];
+    for i in 0..width {
+        let h = map_circle(&hues, 0.05, i as f32 / width as f32);
+        let s = map_interval(
+            &sats,
+            0.1,
+            (i as f32 / width as f32 + wheel_params.sat_offset) % 1.0,
+        );
+        let l = map_interval(
+            &lights,
+            0.1,
+            (i as f32 / width as f32 + wheel_params.light_offset) % 1.0,
+        );
+        let hsluv = Hsluv::new(360.0 * h, 100.0 * s, 100.0 * l);
+        let c1 = hsluv.to_color();
+        ShapeBuilder::new()
+            .line(pt(i, 0), pt(i, height))
+            .stroke_color(c1)
+            .build()
+            .draw(&mut canvas);
+    }
     canvas.pixmap
+}
+
+#[cfg(test)]
+
+mod tests {
+    use super::*;
+
+    #[test]
+    fn map_hue_test() {
+        let hues = vec![0.1, 0.5, 0.8];
+        let a = map_circle(&hues, 0.05, 0.15);
+        let b = map_circle(&hues, 0.05, 0.2);
+        let c = map_circle(&hues, 0.05, 0.6);
+        let d = map_circle(&hues, 0.05, 0.81);
+        dbg!(a, b, c, d);
+    }
+
+    #[test]
+    fn map_sat_test() {
+        let hues = vec![0.1, 0.5, 0.8];
+        let a = map_interval(&hues, 0.05, 0.15);
+        let b = map_interval(&hues, 0.05, 0.2);
+        let c = map_interval(&hues, 0.05, 0.6);
+        let d = map_interval(&hues, 0.05, 0.81);
+        dbg!(a, b, c, d);
+    }
+
+    #[test]
+    fn halton_test() {
+        for i in 100..120 {
+            dbg!(halton(i, 2));
+        }
+    }
 }
